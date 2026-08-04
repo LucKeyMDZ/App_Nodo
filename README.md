@@ -193,7 +193,8 @@ docker compose exec -T db pg_dump -U prestamos prestamos > backup_$(date +%F).sq
 
 ## 👤 Autor
 
-Desarrollado por **Lucca Rando** — [luccarando.96@gmail.com](mailto:luccarando.96@gmail.com)
+Desarrollado por **Lucca Rando** & **Daniel Yacante**
+
 
 <div align="center">
 
