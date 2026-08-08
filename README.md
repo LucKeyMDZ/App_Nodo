@@ -23,6 +23,7 @@ completo y auditable de todos los movimientos.
 
 - [¿Qué es NODO?](#-qué-es-nodo)
 - [Funcionalidades](#-funcionalidades)
+- [Mejoras y Actualizaciones](#-mejoras-y-actualizaciones)
 - [Stack tecnológico](#-stack-tecnológico)
 - [Instalación rápida (Windows, sin Docker)](#-instalación-rápida-windows-sin-docker)
 - [App de escritorio (.exe portable)](#-app-de-escritorio-exe-portable)
@@ -37,14 +38,16 @@ completo y auditable de todos los movimientos.
 
 NODO corre entero dentro de la red interna del taller, sin depender de internet. Cualquier
 PC de la red abre la app desde el navegador (o desde un ícono de escritorio) y accede a
-cuatro pantallas centrales:
+seis pantallas centrales:
 
 | Pantalla | Qué hace |
 |---|---|
-| 🖥️ **Mostrador** | Escaneás o escribís el código del elemento. Si está disponible, arma el préstamo (clase regular con profesor automático, o evento especial). Si ya estaba afuera, lo ofrece marcar como devuelto. Trabaja en modo "carrito": podés escanear varios elementos seguidos antes de confirmar el lote. |
-| 📜 **Historial** | Buscador de todos los movimientos —por curso, profesor, código, fecha o estado— con exportación a **PDF**. El registro nunca se borra: es la auditoría permanente del taller. |
+| 🖥️ **Mostrador** | Dividido en **Salidas** y **Devoluciones**. Escaneás o escribís el código del elemento y se agrega solo al carrito correspondiente, sin tocar Enter. Si algo que sale ya estaba afuera, cierra ese préstamo viejo solo y lo vuelve a prestar en el mismo movimiento. Incluye stock en vivo y un gráfico de notebooks prestadas por curso, ambos actualizados en tiempo real. |
+| 📜 **Historial** | Buscador de todos los movimientos —por curso, profesor, código, fecha o estado—, con columnas ordenables con un clic y exportación a **PDF**. El registro nunca se borra: es la auditoría permanente del taller. |
 | 📦 **Inventario** | Alta, edición y baja de elementos, con notas libres, filtro por categoría y exportación a PDF del inventario completo. |
-| 🛠️ **Novedades** | Registro de bajas, reparaciones e incidentes por elemento. Marcar un retiro pasa el elemento a estado `baja` automáticamente; eliminarla lo revierte si corresponde. |
+| 🛠️ **Novedades** | Registro de bajas, reparaciones e incidentes por elemento, y por separado, novedades a nivel de **laboratorio** (Lab. E1, E2, Info. 1, Info. 2, Cn). Marcar un retiro pasa el elemento a estado `baja` automáticamente; eliminarla lo revierte si corresponde. |
+| ✅ **Tareas** | Asignación de tareas de mantenimiento por laboratorio, con responsable, prioridad (alta/media/baja, con color) y check de "realizada". Ordenable por prioridad o fecha de carga. |
+| 🛒 **Compras** | Lista de lo que hace falta comprar, con cantidad y prioridad, exportable a **Excel** con un clic. |
 
 ---
 
@@ -54,10 +57,17 @@ cuatro pantallas centrales:
 - 🛒 **Carga en lote** de préstamos y devoluciones desde el Mostrador, escaneando varios
   códigos seguidos — cada elemento se agrega solo al carrito apenas se completa un código
   válido, sin necesidad de tocar Enter.
-- 📊 **Stock en vivo**: panel en el Mostrador que muestra cuántas notebooks y proyectores
-  quedan disponibles en este momento, actualizado en tiempo real.
-- 🧾 **Exportación a PDF** del historial de movimientos y del inventario completo, respetando
-  los filtros aplicados en pantalla.
+- 🔄 **Re-préstamo en un solo escaneo**: si un elemento que sigue afuera se vuelve a escanear
+  en Salidas, la app cierra ese préstamo viejo sola y lo deja listo para salir de nuevo —
+  pensado para cuando vuelven muchos elementos juntos al terminar una clase.
+- 📊 **Stock y movimientos en vivo**: paneles en el Mostrador con cuántas notebooks y
+  proyectores quedan disponibles, más un gráfico de notebooks prestadas por curso en este
+  momento — todo se actualiza solo, sin recargar la página.
+- 🧾 **Exportación a PDF** del historial de movimientos y del inventario completo, y a
+  **Excel** de la lista de compras, respetando los filtros aplicados en pantalla.
+- 💾 **Respaldo automático en Excel**: cada salida y entrada también queda anotada en
+  `BacKup.xlsx`, en paralelo a la base de datos — para tener control manual si el servidor
+  llegara a caerse.
 - 🗑️ **Bajas seguras**: un elemento con préstamos o novedades asociadas no se puede eliminar
   por error — hay que darlo de baja explícitamente, así nunca se pierde el historial real.
 - 🔁 **Renombrado de códigos con historial intacto**: si se corrige el código de un elemento,
@@ -71,7 +81,57 @@ cuatro pantallas centrales:
 
 ---
 
-## 🧱 Stack tecnológico
+## 🆕 Mejoras y Actualizaciones
+
+Resumen de lo que se trabajó entre ayer y hoy, sobre la base que ya estaba funcionando.
+
+**Mostrador**
+- Rediseño en dos columnas — **Salidas** y **Devoluciones** — cada una con su propio
+  escaneo, en vez de un único cuadro que adivinaba qué hacer.
+- El formulario de "para quién" (curso/día/hora o evento) quedó siempre visible arriba, en
+  vez de aparecer recién después de escanear algo.
+- El día se autocompleta solo, igual que la hora — con elegir el curso ya alcanza para que
+  se complete el profesor y la hora a devolver.
+- Un elemento que ya está afuera y se vuelve a escanear en Salidas cierra su préstamo
+  viejo solo y queda listo para el nuevo, en un solo movimiento.
+- Nuevo gráfico en vivo de notebooks prestadas por curso, hecho a medida a partir de un
+  boceto — sube cuando sale una y baja cuando vuelve.
+
+**Historial**
+- Columnas ordenables con un clic (fecha, elemento, estado, etc.).
+- Se corrigió un error de horario: los movimientos quedaban registrados con 3 horas de más
+  por una diferencia entre la hora UTC de la base y la hora real de Argentina.
+
+**Novedades**
+- Se agregó **Novedades de laboratorios**, separado de las novedades por elemento — para
+  reportar problemas de un laboratorio en general (Lab. E1, E2, Info. 1, Info. 2, Cn), no
+  de un elemento puntual.
+
+**Nuevo: Tareas y Compras**
+- Pantalla de **Tareas**: asignación por laboratorio, responsable, prioridad con color y
+  check de realizada, ordenable.
+- Pantalla de **Compras**: cantidad, qué comprar y prioridad, con descarga en Excel.
+
+**Confiabilidad de los datos**
+- Se encontró y corrigió un error real: al eliminar una novedad, un elemento que seguía
+  prestado podía quedar marcado como "disponible" por error. Se reforzó además la
+  verificación para que nunca puedan existir dos préstamos abiertos del mismo elemento al
+  mismo tiempo, sin importar la causa.
+- Se eliminó un problema de caché del navegador que podía mostrar páginas desactualizadas
+  (Historial, Inventario, etc.) mientras otros datos ya estaban al día.
+- **Respaldo automático en Excel** (`BacKup.xlsx`): cada salida y entrada se anota también
+  ahí, en paralelo a la base de datos, pensado para cuando la app corra en el servidor del
+  trabajo — si algo se cae, ese Excel queda como historial de respaldo y se puede seguir
+  anotando a mano sin perder lo que ya había.
+
+**Experiencia de uso**
+- Se corrigió el contraste del modo oscuro al pasar el mouse por las tablas.
+- Botón para cerrar la aplicación de forma prolija, y detección de si ya está corriendo en
+  segundo plano (evita quedar "colgada" sin abrir nada al hacer doble clic de nuevo).
+
+---
+
+## 🧱 Stack tecnológico:
 
 | Capa | Tecnología |
 |---|---|
@@ -79,6 +139,7 @@ cuatro pantallas centrales:
 | ORM / datos | [SQLAlchemy](https://www.sqlalchemy.org/) — SQLite (local) / PostgreSQL (producción) |
 | Plantillas | [Jinja2](https://jinja.palletsprojects.com/) — server-rendered, sin frameworks de frontend |
 | PDFs | [ReportLab](https://www.reportlab.com/) |
+| Excel | [openpyxl](https://openpyxl.readthedocs.io/) |
 | Empaquetado desktop | [PyInstaller](https://pyinstaller.org/) |
 | Contenedores | Docker + Docker Compose |
 
@@ -111,14 +172,15 @@ http://localhost:8000
 
 ## 🖥️ App de escritorio (.exe portable)
 
-Para que cualquier compañero del taller la use sin instalar nada:
+Para que cualquier compañero del Nodo la use sin instalar nada:
 
 1. Copiá la carpeta **`NODO/`** a la PC destino (no requiere Python instalado ahí).
 2. Doble clic en **`NODO.exe`** — arranca el servidor sin ventanas de consola y abre el
    navegador solo.
 3. La primera vez crea la base de datos sola; las siguientes respeta lo ya cargado.
 4. Botón **"Cerrar aplicación"** en la barra superior para apagarla de forma prolija al
-   terminar el turno.
+   terminar el turno. Si te olvidás y volvés a abrir el ícono, simplemente te lleva a la
+   app que ya estaba corriendo.
 
 ---
 
@@ -149,7 +211,7 @@ docker compose exec -T db pg_dump -U prestamos prestamos > backup_$(date +%F).sq
 
 ---
 
-## 📁 Estructura del proyecto
+## 📁 Estructura del proyecto:
 
 ```
 ├── docker-compose.yml
@@ -161,6 +223,7 @@ docker compose exec -T db pg_dump -U prestamos prestamos > backup_$(date +%F).sq
 │   ├── schema_sqlite.sql     # esquema SQLite (local)
 │   └── seed.sql               # cursos, materias, profesores, horarios, inventario inicial
 ├── NODO/                    # app de escritorio empaquetada (.exe portable)
+│   └── BacKup.xlsx           # respaldo automático de salidas/entradas
 └── backend/
     ├── Dockerfile
     ├── requirements.txt          # despliegue Docker/Postgres
@@ -172,14 +235,16 @@ docker compose exec -T db pg_dump -U prestamos prestamos > backup_$(date +%F).sq
         ├── models.py           # tablas (SQLAlchemy)
         ├── schemas.py          # validación de entrada/salida (Pydantic)
         ├── pdf.py               # generación de PDFs (historial e inventario)
-        ├── routers/            # API: prestamos, inventario, novedades
-        ├── templates/          # HTML (Mostrador, Historial, Inventario, Novedades)
-        └── static/             # CSS y assets
+        ├── excel.py             # generación de Excel (compras)
+        ├── backup_excel.py      # respaldo BacKup.xlsx de cada salida/entrada
+        ├── routers/            # API: prestamos, inventario, novedades, laboratorios, tareas, compras
+        ├── templates/          # HTML de cada pantalla
+        └── static/             # CSS, JS y assets
 ```
 
 ---
 
-## 📝 Notas de diseño
+## 📝 Notas de diseño:
 
 - El **historial de préstamos nunca se borra**: es el registro de auditoría del taller. Las
   únicas bajas posibles son de elementos de inventario sin movimientos asociados, o de
@@ -188,13 +253,14 @@ docker compose exec -T db pg_dump -U prestamos prestamos > backup_$(date +%F).sq
   (el archivo fuente no tenía esa columna) — se puede completar de a poco desde la app.
 - La base local (SQLite) y la de producción (PostgreSQL) son independientes: lo que se
   carga probando en una PC no viaja solo al servidor.
+- El respaldo en Excel (`BacKup.xlsx`) solo agrega filas, nunca reescribe: así, si alguien
+  anota movimientos a mano mientras la app está caída, nada de eso se pierde cuando vuelve.
 
 ---
 
-## 👤 Autor
+## 👤 Autores:
 
 Desarrollado por **Lucca Rando** & **Daniel Yacante**
-
 
 <div align="center">
 
