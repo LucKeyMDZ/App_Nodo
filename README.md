@@ -30,7 +30,7 @@ completo y auditable de todos los movimientos.
 - [Despliegue en producción (Docker + PostgreSQL)](#-despliegue-en-producción-docker--postgresql)
 - [Estructura del proyecto](#-estructura-del-proyecto)
 - [Notas de diseño](#-notas-de-diseño)
-- [Autor](#-autor)
+- [Autores](#-autores)
 
 ---
 
@@ -131,7 +131,7 @@ Resumen de lo que se trabajó entre ayer y hoy, sobre la base que ya estaba func
 
 ---
 
-## 🧱 Stack tecnológico
+## 🧱 Stack tecnológico:
 
 | Capa | Tecnología |
 |---|---|
@@ -172,7 +172,7 @@ http://localhost:8000
 
 ## 🖥️ App de escritorio (.exe portable)
 
-Para que cualquier compañero del taller la use sin instalar nada:
+Para que cualquier compañero del Nodo la use sin instalar nada:
 
 1. Copiá la carpeta **`NODO/`** a la PC destino (no requiere Python instalado ahí).
 2. Doble clic en **`NODO.exe`** — arranca el servidor sin ventanas de consola y abre el
@@ -211,7 +211,7 @@ docker compose exec -T db pg_dump -U prestamos prestamos > backup_$(date +%F).sq
 
 ---
 
-## 📁 Estructura del proyecto
+## 📁 Estructura del proyecto:
 
 ```
 ├── docker-compose.yml
@@ -244,7 +244,7 @@ docker compose exec -T db pg_dump -U prestamos prestamos > backup_$(date +%F).sq
 
 ---
 
-## 📝 Notas de diseño
+## 📝 Notas de diseño:
 
 - El **historial de préstamos nunca se borra**: es el registro de auditoría del taller. Las
   únicas bajas posibles son de elementos de inventario sin movimientos asociados, o de
@@ -258,7 +258,7 @@ docker compose exec -T db pg_dump -U prestamos prestamos > backup_$(date +%F).sq
 
 ---
 
-## 👤 Autor
+## 👤 Autores:
 
 Desarrollado por **Lucca Rando** & **Daniel Yacante**
 
