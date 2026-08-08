@@ -1,0 +1,538 @@
+{% extends "base.html" %}
+{% block title %}Mostrador — Préstamos del taller{% endblock %}
+{% block content %}
+
+<h1>Mostrador</h1>
+
+<div class="card">
+  <h2>Stock disponible ahora</h2>
+  <div class="stock-grid" id="stock-grid">
+    <div class="empty">Cargando…</div>
+  </div>
+</div>
+
+<div class="dos-columnas">
+
+  <!-- ==================== SALIDAS ==================== -->
+  <div class="columna">
+    <div class="card">
+      <h2>Salidas de elementos</h2>
+
+      <div class="tabs">
+        <div class="tab active" data-tipo="clase">Clase regular</div>
+        <div class="tab" data-tipo="evento">Evento especial</div>
+      </div>
+
+      <div id="bloque-clase">
+        <div class="row">
+          <div>
+            <label for="curso">Curso</label>
+            <select id="curso">
+              <option value="">Elegir curso…</option>
+              {% for c in cursos %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="dia">Día</label>
+            <select id="dia">
+              {% for d in dias %}<option value="{{ d }}" {% if d == dia_actual %}selected{% endif %}>{{ d }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="hora">Hora</label>
+            <input type="time" id="hora" value="{{ hoy }}">
+          </div>
+        </div>
+        <div id="profesor-preview" class="profesor-preview" hidden></div>
+      </div>
+
+      <div id="bloque-evento" hidden>
+        <label for="evento-nombre">Nombre del evento / actividad</label>
+        <input type="text" id="evento-nombre" placeholder="Ej: charla de vialidad">
+        <label for="responsable-manual">Responsable</label>
+        <input type="text" id="responsable-manual" placeholder="Nombre de quien se hace cargo">
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="hora-devolver">Hora a devolver</label>
+          <input type="time" id="hora-devolver">
+        </div>
+        <div>
+          <label for="cargado-por">Cargado por <span class="hint">(opcional)</span></label>
+          <input type="text" id="cargado-por" placeholder="Quién opera el mostrador">
+        </div>
+      </div>
+
+      <label for="anotaciones">Anotaciones <span class="hint">(opcional)</span></label>
+      <textarea id="anotaciones"></textarea>
+
+      <hr class="separador">
+
+      <label for="scan-salida">Escanear código del elemento a prestar</label>
+      <input id="scan-salida" class="scan-input" type="text" autofocus autocomplete="off"
+             placeholder="Escaneá el código o escribilo">
+      <div id="salida-msg"></div>
+
+      <h3>Elementos a prestar (<span id="prestamo-count">0</span>)</h3>
+      <p id="prestamo-vacio" class="empty">Todavía no escaneaste ningún elemento.</p>
+      <ul id="prestamo-lista" class="cart-list"></ul>
+
+      <div id="prestamo-msg"></div>
+      <button class="btn" id="btn-prestar-todo" hidden>Registrar préstamo de todos</button>
+      <button class="btn btn-secondary" id="btn-vaciar-prestamo" hidden>Vaciar lista</button>
+    </div>
+  </div>
+
+  <!-- ==================== DEVOLUCIONES ==================== -->
+  <div class="columna">
+    <div class="card">
+      <h2>Devoluciones de elementos</h2>
+
+      <label for="scan-devolucion">Escanear código del elemento devuelto</label>
+      <input id="scan-devolucion" class="scan-input" type="text" autocomplete="off"
+             placeholder="Escaneá el código o escribilo">
+      <div id="devolucion-msg"></div>
+
+      <h3>Para devolver (<span id="dev-count">0</span>)</h3>
+      <p id="dev-vacio" class="empty">Ningún elemento esperando devolución. Escaneá el código de algo que ya esté prestado para agregarlo acá.</p>
+      <ul id="dev-lista" class="cart-list"></ul>
+
+      <div id="dev-msg"></div>
+      <button class="btn" id="btn-devolver-todo" hidden>Marcar todos como devueltos</button>
+    </div>
+
+    <div class="card">
+      <h2>Movimientos de notebooks por curso</h2>
+      <p class="hint">Notebooks prestadas ahora mismo, sin devolver — sube cuando sale una y baja cuando vuelve. "Otro" son los eventos especiales, que no pertenecen a un curso.</p>
+      <div id="grafico-notebooks"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const scanSalida = document.getElementById('scan-salida');
+const salidaMsg = document.getElementById('salida-msg');
+const scanDevolucion = document.getElementById('scan-devolucion');
+const devolucionMsg = document.getElementById('devolucion-msg');
+
+const devLista = document.getElementById('dev-lista');
+const devCount = document.getElementById('dev-count');
+const devMsg = document.getElementById('dev-msg');
+const prestamoLista = document.getElementById('prestamo-lista');
+const prestamoCount = document.getElementById('prestamo-count');
+const prestamoMsg = document.getElementById('prestamo-msg');
+
+let carritoDevolucion = []; // {prestamo_id, codigo, nombre, profesor_responsable, hora_devolver, error}
+let carritoPrestamo = [];   // {codigo, nombre, error}
+let tipoActividad = 'clase';
+
+async function actualizarStock() {
+  try {
+    const r = await fetch('/api/inventario/stock-destacado');
+    if (!r.ok) return;
+    const grupos = await r.json();
+    document.getElementById('stock-grid').innerHTML = grupos.map(g => `
+      <div class="stock-item">
+        <div class="stock-num">${g.disponibles}</div>
+        <div class="stock-label">${g.etiqueta}</div>
+        <div class="hint">de ${g.total} en total</div>
+      </div>
+    `).join('');
+  } catch (err) {
+    // silencioso: no queremos que un problema de red trabe el mostrador
+  }
+}
+async function actualizarGraficoNotebooks() {
+  try {
+    const r = await fetch('/api/inventario/movimientos-notebook-por-curso');
+    if (!r.ok) return;
+    const datos = await r.json();
+    dibujarGraficoBarras('grafico-notebooks', datos);
+  } catch (err) {
+    // silencioso: no queremos que un problema de red trabe el mostrador
+  }
+}
+
+function dibujarGraficoBarras(contenedorId, datos) {
+  const contenedor = document.getElementById(contenedorId);
+  if (!contenedor) return;
+  const ancho = contenedor.clientWidth || 600;
+  const alto = 260;
+  const margenIzq = 34, margenInf = 34, margenSup = 16, margenDer = 8;
+  const anchoGrafico = Math.max(1, ancho - margenIzq - margenDer);
+  const altoGrafico = alto - margenSup - margenInf;
+
+  const max = Math.max(0, ...datos.map(d => d.cantidad));
+  const maxEje = max === 0 ? 5 : Math.ceil(max / 5) * 5;
+
+  const espacio = anchoGrafico / datos.length;
+  const anchoBarra = Math.min(34, espacio * 0.6);
+
+  const partes = [`<svg viewBox="0 0 ${ancho} ${alto}" width="100%" height="${alto}" role="img" aria-label="Préstamos de notebooks por curso">`];
+
+  const pasos = 5;
+  for (let i = 0; i <= pasos; i++) {
+    const valor = Math.round((maxEje / pasos) * i);
+    const y = margenSup + altoGrafico - (altoGrafico * i / pasos);
+    partes.push(`<line x1="${margenIzq}" y1="${y}" x2="${ancho - margenDer}" y2="${y}" stroke="var(--border)" stroke-width="1" />`);
+    partes.push(`<text x="${margenIzq - 6}" y="${y + 4}" text-anchor="end" font-size="10" fill="var(--text-muted)">${valor}</text>`);
+  }
+
+  datos.forEach((d, i) => {
+    const x = margenIzq + espacio * i + (espacio - anchoBarra) / 2;
+    const alturaBarra = maxEje > 0 ? (d.cantidad / maxEje) * altoGrafico : 0;
+    const y = margenSup + altoGrafico - alturaBarra;
+    partes.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${anchoBarra.toFixed(1)}" height="${alturaBarra.toFixed(1)}" fill="var(--accent)" rx="3"><title>${d.curso}: ${d.cantidad}</title></rect>`);
+    if (d.cantidad > 0) {
+      partes.push(`<text x="${(x + anchoBarra / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--text)">${d.cantidad}</text>`);
+    }
+    partes.push(`<text x="${(x + anchoBarra / 2).toFixed(1)}" y="${alto - margenInf + 15}" text-anchor="middle" font-size="10" fill="var(--text-muted)">${d.curso}</text>`);
+  });
+
+  partes.push('</svg>');
+  contenedor.innerHTML = partes.join('');
+}
+
+actualizarStock();
+actualizarGraficoNotebooks();
+setInterval(() => { actualizarStock(); actualizarGraficoNotebooks(); }, 30000);
+
+function msg(el, text, kind) {
+  el.innerHTML = text ? `<div class="msg msg-${kind}">${text}</div>` : '';
+}
+
+// Lector de código de barras/QR (o alguien escribiendo a mano): apenas se
+// completa un código que existe en el inventario, se agrega solo, sin
+// necesidad de Enter. Se espera una pausa breve para no disparar un pedido
+// al servidor por cada letra mientras todavía se está tipeando.
+function conectarAutoScan(inputEl, handler) {
+  let debounce = null;
+
+  inputEl.addEventListener('input', () => {
+    if (debounce) clearTimeout(debounce);
+    const codigo = inputEl.value.trim();
+    if (!codigo) return;
+    debounce = setTimeout(() => intentar(codigo), 200);
+  });
+
+  async function intentar(codigo) {
+    if (inputEl.value.trim() !== codigo) return; // ya se siguió escribiendo, no corresponde más
+    try {
+      const r = await fetch(`/api/elementos/${encodeURIComponent(codigo)}`);
+      if (r.ok && inputEl.value.trim() === codigo) {
+        await handler(codigo);
+      }
+      // si no existe todavía, no hacemos nada: puede ser un código más largo a medio escribir
+    } catch (err) {
+      // sin conexión momentánea: no pasa nada, sigue quedando la opción de Enter
+    }
+  }
+
+  inputEl.addEventListener('keydown', async (e) => {
+    if (e.key !== 'Enter') return;
+    if (debounce) clearTimeout(debounce);
+    const codigo = inputEl.value.trim();
+    if (!codigo) return;
+    await handler(codigo);
+  });
+}
+
+async function handleScanSalida(codigo) {
+  msg(salidaMsg, '', '');
+  let elemento;
+  try {
+    const r = await fetch(`/api/elementos/${encodeURIComponent(codigo)}`);
+    if (!r.ok) {
+      msg(salidaMsg, `No existe ningún elemento con el código "${codigo}".`, 'error');
+      scanSalida.select();
+      return;
+    }
+    elemento = await r.json();
+  } catch (err) {
+    msg(salidaMsg, 'No se pudo consultar el servidor.', 'error');
+    return;
+  }
+
+  if (elemento.estado === 'baja') {
+    msg(salidaMsg, `"${elemento.nombre}" está dado de baja. No se puede prestar.`, 'error');
+    scanSalida.select();
+    return;
+  }
+
+  let devueltoAutomaticamente = false;
+  if (elemento.estado === 'prestado' || elemento.estado === 'vencido') {
+    // Ya estaba afuera: en vez de obligar a pasarlo primero por Devoluciones,
+    // se cierra solo el préstamo anterior y sigue derecho para el que sale ahora
+    // (muy común cuando vuelven muchas notebooks juntas al terminar una clase).
+    const rAbierto = await fetch(`/api/prestamos/abierto/${encodeURIComponent(codigo)}`);
+    const abierto = rAbierto.ok ? await rAbierto.json() : null;
+    if (!abierto) {
+      msg(salidaMsg, `"${elemento.nombre}" figura prestado pero no se encontró el préstamo abierto. Revisalo en Historial.`, 'error');
+      scanSalida.select();
+      return;
+    }
+    const rDevolver = await fetch(`/api/prestamos/${abierto.id}/devolver`, { method: 'POST' });
+    if (!rDevolver.ok) {
+      msg(salidaMsg, `No se pudo cerrar el préstamo anterior de "${elemento.nombre}".`, 'error');
+      scanSalida.select();
+      return;
+    }
+    devueltoAutomaticamente = true;
+    actualizarStock();
+    actualizarGraficoNotebooks();
+  }
+
+  if (carritoPrestamo.some(i => i.codigo === elemento.codigo)) {
+    msg(salidaMsg, `"${elemento.nombre}" ya está en la lista para prestar.`, 'warn');
+  } else {
+    carritoPrestamo.push({ codigo: elemento.codigo, nombre: elemento.nombre });
+    renderPrestamo();
+    if (devueltoAutomaticamente) {
+      msg(salidaMsg, `"${elemento.nombre}" devuelto del préstamo anterior y agregado para prestar de nuevo.`, 'ok');
+    } else {
+      const advertencia = elemento.estado === 'reparacion' ? ' (figura en reparación, revisalo antes)' : '';
+      msg(salidaMsg, `"${elemento.nombre}" agregado para prestar${advertencia}.`, elemento.estado === 'reparacion' ? 'warn' : 'ok');
+    }
+  }
+  scanSalida.value = '';
+  scanSalida.focus();
+}
+
+async function handleScanDevolucion(codigo) {
+  msg(devolucionMsg, '', '');
+  let elemento;
+  try {
+    const r = await fetch(`/api/elementos/${encodeURIComponent(codigo)}`);
+    if (!r.ok) {
+      msg(devolucionMsg, `No existe ningún elemento con el código "${codigo}".`, 'error');
+      scanDevolucion.select();
+      return;
+    }
+    elemento = await r.json();
+  } catch (err) {
+    msg(devolucionMsg, 'No se pudo consultar el servidor.', 'error');
+    return;
+  }
+
+  const rAbierto = await fetch(`/api/prestamos/abierto/${encodeURIComponent(codigo)}`);
+  const abierto = rAbierto.ok ? await rAbierto.json() : null;
+
+  if (!abierto) {
+    msg(devolucionMsg, `"${elemento.nombre}" no figura como prestado actualmente.`, 'warn');
+    scanDevolucion.select();
+    return;
+  }
+
+  if (carritoDevolucion.some(i => i.prestamo_id === abierto.id)) {
+    msg(devolucionMsg, `"${elemento.nombre}" ya está en la lista para devolver.`, 'warn');
+  } else {
+    carritoDevolucion.push({
+      prestamo_id: abierto.id,
+      codigo: elemento.codigo,
+      nombre: elemento.nombre,
+      profesor_responsable: abierto.profesor_responsable,
+      hora_devolver: abierto.hora_devolver,
+    });
+    renderDevolucion();
+    msg(devolucionMsg, `"${elemento.nombre}" agregado para devolver.`, 'ok');
+  }
+  scanDevolucion.value = '';
+  scanDevolucion.focus();
+}
+
+conectarAutoScan(scanSalida, handleScanSalida);
+conectarAutoScan(scanDevolucion, handleScanDevolucion);
+
+function quitarDeDevolucion(prestamoId) {
+  carritoDevolucion = carritoDevolucion.filter(i => i.prestamo_id !== prestamoId);
+  renderDevolucion();
+}
+
+function quitarDePrestamo(codigo) {
+  carritoPrestamo = carritoPrestamo.filter(i => i.codigo !== codigo);
+  renderPrestamo();
+}
+
+function renderDevolucion() {
+  const hayItems = carritoDevolucion.length > 0;
+  document.getElementById('dev-vacio').hidden = hayItems;
+  document.getElementById('btn-devolver-todo').hidden = !hayItems;
+  devCount.textContent = carritoDevolucion.length;
+  devLista.innerHTML = carritoDevolucion.map(item => `
+    <li class="cart-item${item.error ? ' error' : ''}">
+      <div class="info">
+        <span class="nombre">${item.nombre}</span>
+        <span class="hint">${item.codigo} · responsable: ${item.profesor_responsable} · debía devolverse a las ${item.hora_devolver}</span>
+        ${item.error ? `<span class="error-text">${item.error}</span>` : ''}
+      </div>
+      <button type="button" class="quitar" title="Quitar de la lista" data-prestamo-id="${item.prestamo_id}">✕</button>
+    </li>
+  `).join('');
+  devLista.querySelectorAll('.quitar').forEach(btn => {
+    btn.addEventListener('click', () => quitarDeDevolucion(Number(btn.dataset.prestamoId)));
+  });
+}
+
+function renderPrestamo() {
+  const hayItems = carritoPrestamo.length > 0;
+  document.getElementById('prestamo-vacio').hidden = hayItems;
+  document.getElementById('btn-prestar-todo').hidden = !hayItems;
+  document.getElementById('btn-vaciar-prestamo').hidden = !hayItems;
+  prestamoCount.textContent = carritoPrestamo.length;
+  prestamoLista.innerHTML = carritoPrestamo.map(item => `
+    <li class="cart-item${item.error ? ' error' : ''}">
+      <div class="info">
+        <span class="nombre">${item.nombre}</span>
+        <span class="hint">${item.codigo}</span>
+        ${item.error ? `<span class="error-text">${item.error}</span>` : ''}
+      </div>
+      <button type="button" class="quitar" title="Quitar de la lista" data-codigo="${item.codigo}">✕</button>
+    </li>
+  `).join('');
+  prestamoLista.querySelectorAll('.quitar').forEach(btn => {
+    btn.addEventListener('click', () => quitarDePrestamo(btn.dataset.codigo));
+  });
+}
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => setTipo(tab.dataset.tipo));
+});
+
+function setTipo(tipo) {
+  tipoActividad = tipo;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tipo === tipo));
+  document.getElementById('bloque-clase').hidden = tipo !== 'clase';
+  document.getElementById('bloque-evento').hidden = tipo !== 'evento';
+}
+
+async function actualizarProfesor() {
+  const curso = document.getElementById('curso').value;
+  const dia = document.getElementById('dia').value;
+  const hora = document.getElementById('hora').value;
+  const preview = document.getElementById('profesor-preview');
+  if (!curso || !hora) { preview.hidden = true; return; }
+
+  const r = await fetch(`/api/horario/profesor?curso=${encodeURIComponent(curso)}&dia=${encodeURIComponent(dia)}&hora=${encodeURIComponent(hora)}`);
+  const data = await r.json();
+  preview.hidden = false;
+  if (data.encontrado) {
+    preview.innerHTML = `<div class="nombre">${data.profesor}</div><div class="hint">${data.materia} · ${data.hora_inicio} a ${data.hora_fin}</div>`;
+    document.getElementById('hora-devolver').value = data.hora_fin;
+  } else {
+    preview.innerHTML = `<div class="hint">No se encontró clase para ${curso} el ${dia} a las ${hora}. Si es correcto, usá "Evento especial".</div>`;
+  }
+}
+
+['curso', 'dia', 'hora'].forEach(id => {
+  document.getElementById(id).addEventListener('change', actualizarProfesor);
+});
+
+document.getElementById('btn-vaciar-prestamo').addEventListener('click', () => {
+  carritoPrestamo = [];
+  renderPrestamo();
+  msg(prestamoMsg, '', '');
+});
+
+document.getElementById('btn-prestar-todo').addEventListener('click', async () => {
+  if (carritoPrestamo.length === 0) return;
+  const horaDevolver = document.getElementById('hora-devolver').value;
+  if (!horaDevolver) {
+    msg(prestamoMsg, 'Falta la hora a devolver.', 'error');
+    return;
+  }
+  const body = {
+    elementos_codigos: carritoPrestamo.map(i => i.codigo),
+    tipo_actividad: tipoActividad,
+    hora_devolver: horaDevolver,
+    cargado_por: document.getElementById('cargado-por').value || null,
+    anotaciones: document.getElementById('anotaciones').value || null,
+  };
+  if (tipoActividad === 'clase') {
+    body.curso = document.getElementById('curso').value;
+    body.dia = document.getElementById('dia').value;
+    body.hora = document.getElementById('hora').value;
+    if (!body.curso) { msg(prestamoMsg, 'Falta elegir el curso.', 'error'); return; }
+  } else {
+    body.evento_nombre = document.getElementById('evento-nombre').value;
+    body.responsable_manual = document.getElementById('responsable-manual').value;
+    if (!body.evento_nombre || !body.responsable_manual) {
+      msg(prestamoMsg, 'Falta el nombre del evento o el responsable.', 'error');
+      return;
+    }
+  }
+
+  const r = await fetch('/api/prestamos/batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    msg(prestamoMsg, err.detail || 'No se pudo registrar el préstamo.', 'error');
+    return;
+  }
+  const data = await r.json();
+  let exitos = 0;
+  const porCodigo = {};
+  data.resultados.forEach(res => { porCodigo[res.elemento_codigo] = res; });
+  carritoPrestamo.forEach(item => {
+    const res = porCodigo[item.codigo];
+    if (res && res.ok) { exitos++; item.error = null; } else { item.error = res ? res.error : 'No se pudo registrar.'; }
+  });
+  carritoPrestamo = carritoPrestamo.filter(item => item.error);
+  renderPrestamo();
+  if (exitos > 0) { actualizarStock(); actualizarGraficoNotebooks(); }
+  const fallidos = data.resultados.length - exitos;
+  msg(prestamoMsg,
+    fallidos === 0
+      ? `${exitos} préstamo(s) registrado(s) correctamente.`
+      : `${exitos} registrado(s), ${fallidos} con error (revisá la lista).`,
+    fallidos === 0 ? 'ok' : 'warn');
+  if (carritoPrestamo.length === 0) {
+    msg(salidaMsg, `${exitos} préstamo(s) registrado(s).`, 'ok');
+  }
+  scanSalida.value = '';
+  scanSalida.focus();
+});
+
+document.getElementById('btn-devolver-todo').addEventListener('click', async () => {
+  if (carritoDevolucion.length === 0) return;
+  const r = await fetch('/api/prestamos/devolver/batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prestamo_ids: carritoDevolucion.map(i => i.prestamo_id) }),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    msg(devMsg, err.detail || 'No se pudo registrar la devolución.', 'error');
+    return;
+  }
+  const data = await r.json();
+  let exitos = 0;
+  const porId = {};
+  data.resultados.forEach(res => { porId[res.prestamo_id] = res; });
+  carritoDevolucion.forEach(item => {
+    const res = porId[item.prestamo_id];
+    if (res && res.ok) { exitos++; item.error = null; } else { item.error = res ? res.error : 'No se pudo registrar.'; }
+  });
+  carritoDevolucion = carritoDevolucion.filter(item => item.error);
+  renderDevolucion();
+  if (exitos > 0) { actualizarStock(); actualizarGraficoNotebooks(); }
+  const fallidos = data.resultados.length - exitos;
+  msg(devMsg,
+    fallidos === 0
+      ? `${exitos} devolución(es) registrada(s) correctamente.`
+      : `${exitos} registrada(s), ${fallidos} con error (revisá la lista).`,
+    fallidos === 0 ? 'ok' : 'warn');
+  if (carritoDevolucion.length === 0) {
+    msg(devolucionMsg, `${exitos} devolución(es) registrada(s).`, 'ok');
+  }
+  scanDevolucion.value = '';
+  scanDevolucion.focus();
+});
+
+setTipo('clase');
+</script>
+{% endblock %}

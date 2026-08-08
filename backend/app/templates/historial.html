@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Historial — Préstamos del taller{% endblock %}
+{% block content %}
+
+<h1>Historial</h1>
+
+<form class="card filters" method="get">
+  <div>
+    <label for="curso">Curso</label>
+    <select id="curso" name="curso">
+      <option value="">Todos</option>
+      {% for c in cursos %}
+        <option value="{{ c }}" {% if filtros.curso == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="profesor">Profesor / responsable</label>
+    <input type="text" id="profesor" name="profesor" value="{{ filtros.profesor }}">
+  </div>
+  <div>
+    <label for="elemento_codigo">Código del elemento</label>
+    <input type="text" id="elemento_codigo" name="elemento_codigo" value="{{ filtros.elemento_codigo }}">
+  </div>
+  <div>
+    <label for="desde">Desde</label>
+    <input type="date" id="desde" name="desde" value="{{ filtros.desde }}">
+  </div>
+  <div>
+    <label for="hasta">Hasta</label>
+    <input type="date" id="hasta" name="hasta" value="{{ filtros.hasta }}">
+  </div>
+  <div>
+    <label for="estado">Estado</label>
+    <select id="estado" name="estado">
+      <option value="">Todos</option>
+      {% for e in ['prestado', 'devuelto', 'vencido'] %}
+        <option value="{{ e }}" {% if filtros.estado == e %}selected{% endif %}>{{ e }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <button class="btn" type="submit">Buscar</button>
+    <a class="btn btn-secondary" id="btn-pdf" href="/historial/pdf" target="_blank">Descargar PDF</a>
+  </div>
+</form>
+
+<script>
+  document.getElementById('btn-pdf').addEventListener('click', function (ev) {
+    const form = document.querySelector('form.filters');
+    const params = new URLSearchParams(new FormData(form));
+    this.href = '/historial/pdf?' + params.toString();
+  });
+</script>
+
+<div class="card">
+  {% if movimientos %}
+  <table id="tabla-historial">
+    <thead>
+      <tr>
+        <th data-col="0">Fecha / hora</th><th data-col="1">Elemento</th><th data-col="2">Tipo</th><th data-col="3">Curso / evento</th>
+        <th data-col="4">Responsable</th><th data-col="5">Hora a devolver</th><th data-col="6">Devuelto</th><th data-col="7">Estado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in movimientos %}
+      <tr>
+        <td data-sort="{{ m.fecha_hora.isoformat() }}">{{ m.fecha_hora.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ m.elemento.nombre if m.elemento else m.elemento_codigo }}<br><span class="hint">{{ m.elemento_codigo }}</span></td>
+        <td>{{ m.tipo_actividad }}</td>
+        <td>{{ m.curso.nombre if m.curso else (m.evento_nombre or '-') }}</td>
+        <td>{{ m.profesor_responsable }}</td>
+        <td>{{ m.hora_devolver }}</td>
+        <td data-sort="{{ m.fecha_hora_devolucion_real.isoformat() if m.fecha_hora_devolucion_real else '' }}">{{ m.fecha_hora_devolucion_real.strftime('%d/%m/%Y %H:%M') if m.fecha_hora_devolucion_real else '—' }}</td>
+        <td><span class="badge badge-{{ m.estado }}">{{ m.estado }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No hay movimientos que coincidan con la búsqueda.</div>
+  {% endif %}
+</div>
+
+<script src="/static/tabla-ordenable.js"></script>
+<script>activarOrdenamiento('tabla-historial');</script>
+{% endblock %}

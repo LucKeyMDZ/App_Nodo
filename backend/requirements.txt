@@ -1,0 +1,12 @@
+# Dependencias completas, para el despliegue real con Docker + Postgres.
+# Para probar en local con SQLite (Windows, sin Docker) usa requirements-local.txt en su lugar.
+
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+sqlalchemy==2.0.35
+jinja2==3.1.4
+python-multipart==0.0.9
+pydantic==2.9.2
+psycopg2-binary==2.9.9
+reportlab==5.0.0
+openpyxl==3.1.5

@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}Inventario — Préstamos del taller{% endblock %}
+{% block content %}
+
+<h1>Inventario</h1>
+
+<div class="card">
+  <h2>Agregar elemento</h2>
+  <div class="row">
+    <div>
+      <label for="a-codigo">Código</label>
+      <input type="text" id="a-codigo">
+    </div>
+    <div>
+      <label for="a-nombre">Nombre</label>
+      <input type="text" id="a-nombre">
+    </div>
+    <div>
+      <label for="a-categoria">Categoría <span class="hint">(opcional)</span></label>
+      <input type="text" id="a-categoria" list="lista-categorias">
+    </div>
+  </div>
+  <div id="a-msg"></div>
+  <button class="btn" id="a-btn">Agregar</button>
+</div>
+
+<datalist id="lista-categorias">
+  {% for c in categorias %}
+    <option value="{{ c }}">
+  {% endfor %}
+</datalist>
+
+<form class="card filters" method="get">
+  <div>
+    <label for="q">Buscar por nombre, código o categoría</label>
+    <input type="text" id="q" name="q" value="{{ q }}">
+  </div>
+  <div>
+    <label for="categoria">Categoría</label>
+    <select id="categoria" name="categoria">
+      <option value="">Todas</option>
+      {% for c in categorias %}
+        <option value="{{ c }}" {% if categoria == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="estado">Estado</label>
+    <select id="estado" name="estado">
+      <option value="">Todos</option>
+      {% for e in ['disponible', 'prestado', 'reparacion', 'baja'] %}
+        <option value="{{ e }}" {% if estado == e %}selected{% endif %}>{{ e }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <button class="btn" type="submit">Buscar</button>
+    <a class="btn btn-secondary" id="btn-pdf" href="/inventario/pdf" target="_blank">Descargar PDF</a>
+  </div>
+</form>
+
+<div class="card">
+  {% if elementos %}
+  <table>
+    <thead>
+      <tr>
+        <th>Código</th><th>Nombre</th><th>Categoría</th><th>Estado</th><th>Notas</th><th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="tbody-inventario">
+      {% for e in elementos %}
+      <tr data-codigo="{{ e.codigo }}">
+        <td>
+          <span class="v-codigo">{{ e.codigo }}</span>
+          <input class="e-codigo" type="text" value="{{ e.codigo }}" hidden>
+        </td>
+        <td>
+          <span class="v-nombre">{{ e.nombre }}</span>
+          <input class="e-nombre" type="text" value="{{ e.nombre }}" hidden>
+        </td>
+        <td>
+          <span class="v-categoria">{{ e.categoria or '—' }}</span>
+          <input class="e-categoria" type="text" value="{{ e.categoria or '' }}" list="lista-categorias" hidden>
+        </td>
+        <td><span class="badge badge-{{ e.estado }}">{{ e.estado }}</span></td>
+        <td>
+          <span class="v-notas">{{ e.notas or '—' }}</span>
+          <textarea class="e-notas" hidden>{{ e.notas or '' }}</textarea>
+        </td>
+        <td class="acciones">
+          <button class="btn btn-sm btn-secondary btn-editar">Editar</button>
+          <button class="btn btn-sm btn-secondary btn-guardar" hidden>Guardar</button>
+          <button class="btn btn-sm btn-secondary btn-cancelar" hidden>Cancelar</button>
+          <button class="btn btn-sm btn-danger btn-eliminar">Eliminar</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No hay elementos que coincidan con la búsqueda.</div>
+  {% endif %}
+</div>
+
+<script>
+document.getElementById('btn-pdf').addEventListener('click', function (ev) {
+  const form = document.querySelector('form.filters');
+  const params = new URLSearchParams(new FormData(form));
+  this.href = '/inventario/pdf?' + params.toString();
+});
+
+document.getElementById('a-btn').addEventListener('click', async () => {
+  const msgEl = document.getElementById('a-msg');
+  const codigo = document.getElementById('a-codigo').value.trim();
+  const nombre = document.getElementById('a-nombre').value.trim();
+  if (!codigo || !nombre) {
+    msgEl.innerHTML = '<div class="msg msg-error">Faltan el código o el nombre.</div>';
+    return;
+  }
+  const body = {
+    codigo,
+    nombre,
+    categoria: document.getElementById('a-categoria').value.trim() || null,
+  };
+  const r = await fetch('/api/inventario', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (r.ok) {
+    location.reload();
+  } else {
+    const err = await r.json().catch(() => ({}));
+    msgEl.innerHTML = `<div class="msg msg-error">${err.detail || 'No se pudo agregar.'}</div>`;
+  }
+});
+
+function fila(btn) { return btn.closest('tr'); }
+
+function modoEdicion(tr, activo) {
+  tr.querySelectorAll('.v-codigo, .v-nombre, .v-categoria, .v-notas').forEach(el => el.hidden = activo);
+  tr.querySelectorAll('.e-codigo, .e-nombre, .e-categoria, .e-notas').forEach(el => el.hidden = !activo);
+  tr.querySelector('.btn-editar').hidden = activo;
+  tr.querySelector('.btn-eliminar').hidden = activo;
+  tr.querySelector('.btn-guardar').hidden = !activo;
+  tr.querySelector('.btn-cancelar').hidden = !activo;
+}
+
+document.getElementById('tbody-inventario')?.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button');
+  if (!btn) return;
+  const tr = fila(btn);
+  const codigoOriginal = tr.dataset.codigo;
+
+  if (btn.classList.contains('btn-editar')) {
+    modoEdicion(tr, true);
+  } else if (btn.classList.contains('btn-cancelar')) {
+    tr.querySelector('.e-codigo').value = tr.querySelector('.v-codigo').textContent;
+    tr.querySelector('.e-nombre').value = tr.querySelector('.v-nombre').textContent;
+    const catActual = tr.querySelector('.v-categoria').textContent;
+    tr.querySelector('.e-categoria').value = catActual === '—' ? '' : catActual;
+    const notasActuales = tr.querySelector('.v-notas').textContent;
+    tr.querySelector('.e-notas').value = notasActuales === '—' ? '' : notasActuales;
+    modoEdicion(tr, false);
+  } else if (btn.classList.contains('btn-guardar')) {
+    const nuevoCodigo = tr.querySelector('.e-codigo').value.trim();
+    const nombre = tr.querySelector('.e-nombre').value.trim();
+    if (!nuevoCodigo || !nombre) { alert('El código y el nombre no pueden quedar vacíos.'); return; }
+    const body = {
+      nuevo_codigo: nuevoCodigo,
+      nombre,
+      categoria: tr.querySelector('.e-categoria').value.trim(),
+      notas: tr.querySelector('.e-notas').value.trim(),
+    };
+    const r = await fetch(`/api/inventario/${encodeURIComponent(codigoOriginal)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) {
+      location.reload();
+    } else {
+      const err = await r.json().catch(() => ({}));
+      alert(err.detail || 'No se pudo guardar.');
+    }
+  } else if (btn.classList.contains('btn-eliminar')) {
+    if (!confirm(`¿Eliminar el elemento ${codigoOriginal}? Esta acción no se puede deshacer.`)) return;
+    const r = await fetch(`/api/inventario/${encodeURIComponent(codigoOriginal)}`, { method: 'DELETE' });
+    if (r.ok) {
+      location.reload();
+    } else {
+      const err = await r.json().catch(() => ({}));
+      alert(err.detail || 'No se pudo eliminar.');
+    }
+  }
+});
+</script>
+{% endblock %}

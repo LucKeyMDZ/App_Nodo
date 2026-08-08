@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Tareas — Préstamos del taller{% endblock %}
+{% block content %}
+
+<h1>Tareas</h1>
+
+<div class="card">
+  <h2>Asignar tarea</h2>
+  <div class="row">
+    <div>
+      <label for="t-laboratorio">Laboratorio</label>
+      <select id="t-laboratorio">
+        <option value="">Elegir laboratorio…</option>
+        {% for lab in laboratorios %}<option value="{{ lab }}">{{ lab }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="t-responsable">Quién la tiene que hacer</label>
+      <input type="text" id="t-responsable" placeholder="Nombre del responsable">
+    </div>
+    <div>
+      <label for="t-prioridad">Prioridad</label>
+      <select id="t-prioridad">
+        <option value="alta">Alta</option>
+        <option value="media" selected>Media</option>
+        <option value="baja">Baja</option>
+      </select>
+    </div>
+  </div>
+  <label for="t-descripcion">Qué hay que hacer</label>
+  <textarea id="t-descripcion" placeholder="Describí la tarea"></textarea>
+  <div id="t-msg"></div>
+  <button class="btn" id="t-btn">Registrar tarea</button>
+</div>
+
+<div class="card">
+  <h2>Tareas registradas</h2>
+  {% if tareas %}
+  <table id="tabla-tareas">
+    <thead>
+      <tr>
+        <th data-col="0">Fecha de carga</th>
+        <th data-col="1">Laboratorio</th>
+        <th data-col="2">Responsable</th>
+        <th data-col="3">Prioridad</th>
+        <th data-col="4">Tarea</th>
+        <th>Hecha</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="tbody-tareas">
+      {% for t in tareas %}
+      <tr data-id="{{ t.id }}" class="{{ 'tarea-realizada' if t.realizada else '' }}">
+        <td data-sort="{{ t.fecha_hora.isoformat() }}">{{ t.fecha_hora.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ t.laboratorio }}</td>
+        <td>{{ t.responsable }}</td>
+        <td data-sort="{{ {'alta': 3, 'media': 2, 'baja': 1}[t.prioridad] }}"><span class="badge badge-prioridad-{{ t.prioridad }}">{{ t.prioridad }}</span></td>
+        <td>{{ t.descripcion }}</td>
+        <td><input type="checkbox" class="chk-realizada" title="Marcar como realizada" {% if t.realizada %}checked{% endif %}></td>
+        <td><button class="btn btn-sm btn-danger btn-eliminar-tarea">Eliminar</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">Todavía no hay tareas registradas.</div>
+  {% endif %}
+</div>
+
+<script src="/static/tabla-ordenable.js"></script>
+<script>
+document.getElementById('t-btn').addEventListener('click', async () => {
+  const msgEl = document.getElementById('t-msg');
+  const laboratorio = document.getElementById('t-laboratorio').value;
+  const responsable = document.getElementById('t-responsable').value.trim();
+  const prioridad = document.getElementById('t-prioridad').value;
+  const descripcion = document.getElementById('t-descripcion').value.trim();
+  if (!laboratorio) { msgEl.innerHTML = '<div class="msg msg-error">Falta elegir el laboratorio.</div>'; return; }
+  if (!responsable) { msgEl.innerHTML = '<div class="msg msg-error">Falta indicar quién la tiene que hacer.</div>'; return; }
+  if (!descripcion) { msgEl.innerHTML = '<div class="msg msg-error">Falta describir la tarea.</div>'; return; }
+  const r = await fetch('/api/tareas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ laboratorio, responsable, prioridad, descripcion }),
+  });
+  if (r.ok) {
+    location.reload();
+  } else {
+    const err = await r.json().catch(() => ({}));
+    msgEl.innerHTML = `<div class="msg msg-error">${err.detail || 'No se pudo guardar.'}</div>`;
+  }
+});
+
+document.getElementById('tbody-tareas')?.addEventListener('change', async (ev) => {
+  const chk = ev.target.closest('.chk-realizada');
+  if (!chk) return;
+  const tr = chk.closest('tr');
+  const id = tr.dataset.id;
+  const r = await fetch(`/api/tareas/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ realizada: chk.checked }),
+  });
+  if (r.ok) {
+    tr.classList.toggle('tarea-realizada', chk.checked);
+  } else {
+    chk.checked = !chk.checked;
+    alert('No se pudo actualizar.');
+  }
+});
+
+document.getElementById('tbody-tareas')?.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('.btn-eliminar-tarea');
+  if (!btn) return;
+  const tr = btn.closest('tr');
+  const id = tr.dataset.id;
+  if (!confirm('¿Eliminar esta tarea? Esta acción no se puede deshacer.')) return;
+  const r = await fetch(`/api/tareas/${id}`, { method: 'DELETE' });
+  if (r.ok) {
+    location.reload();
+  } else {
+    const err = await r.json().catch(() => ({}));
+    alert(err.detail || 'No se pudo eliminar.');
+  }
+});
+
+activarOrdenamiento('tabla-tareas');
+</script>
+{% endblock %}

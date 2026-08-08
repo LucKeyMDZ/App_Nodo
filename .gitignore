@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.env
+backend/local.db
+backend/BacKup.xlsx
+venv/
+.claude/
+
+# App de escritorio empaquetada (binarios grandes, se generan con PyInstaller — no se versionan)
+NODO/
+NODO_*.rar
+NODO_*.zip
+backend/build/
+backend/dist/
+backend/*.spec

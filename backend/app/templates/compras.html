@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Compras — Préstamos del taller{% endblock %}
+{% block content %}
+
+<h1>Compras</h1>
+
+<div class="card">
+  <h2>Agregar a la lista de compras</h2>
+  <div class="row">
+    <div>
+      <label for="c-cantidad">Cantidad</label>
+      <input type="number" id="c-cantidad" min="1" step="1" value="1">
+    </div>
+    <div>
+      <label for="c-descripcion">Qué hay que comprar</label>
+      <input type="text" id="c-descripcion" placeholder="Ej: mouse inalámbrico">
+    </div>
+    <div>
+      <label for="c-prioridad">Prioridad</label>
+      <select id="c-prioridad">
+        <option value="alta">Alta</option>
+        <option value="media" selected>Media</option>
+        <option value="baja">Baja</option>
+      </select>
+    </div>
+  </div>
+  <div id="c-msg"></div>
+  <button class="btn" id="c-btn">Agregar</button>
+</div>
+
+<div class="card">
+  <h2>Lista de compras</h2>
+  <a class="btn btn-secondary" href="/compras/excel">Descargar Excel</a>
+
+  {% if compras %}
+  <table id="tabla-compras">
+    <thead>
+      <tr>
+        <th data-col="0">Fecha de carga</th>
+        <th data-col="1">Cantidad</th>
+        <th data-col="2">Qué comprar</th>
+        <th data-col="3">Prioridad</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="tbody-compras">
+      {% for c in compras %}
+      <tr data-id="{{ c.id }}">
+        <td data-sort="{{ c.fecha_hora.isoformat() }}">{{ c.fecha_hora.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td data-sort="{{ c.cantidad }}">{{ c.cantidad }}</td>
+        <td>{{ c.descripcion }}</td>
+        <td data-sort="{{ {'alta': 3, 'media': 2, 'baja': 1}[c.prioridad] }}"><span class="badge badge-prioridad-{{ c.prioridad }}">{{ c.prioridad }}</span></td>
+        <td><button class="btn btn-sm btn-danger btn-eliminar-compra">Eliminar</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">Todavía no hay nada cargado en la lista de compras.</div>
+  {% endif %}
+</div>
+
+<script src="/static/tabla-ordenable.js"></script>
+<script>
+document.getElementById('c-btn').addEventListener('click', async () => {
+  const msgEl = document.getElementById('c-msg');
+  const cantidad = Number(document.getElementById('c-cantidad').value);
+  const descripcion = document.getElementById('c-descripcion').value.trim();
+  const prioridad = document.getElementById('c-prioridad').value;
+  if (!cantidad || cantidad < 1) { msgEl.innerHTML = '<div class="msg msg-error">La cantidad tiene que ser al menos 1.</div>'; return; }
+  if (!descripcion) { msgEl.innerHTML = '<div class="msg msg-error">Falta indicar qué hay que comprar.</div>'; return; }
+  const r = await fetch('/api/compras', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cantidad, descripcion, prioridad }),
+  });
+  if (r.ok) {
+    location.reload();
+  } else {
+    const err = await r.json().catch(() => ({}));
+    msgEl.innerHTML = `<div class="msg msg-error">${err.detail || 'No se pudo guardar.'}</div>`;
+  }
+});
+
+document.getElementById('tbody-compras')?.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('.btn-eliminar-compra');
+  if (!btn) return;
+  const tr = btn.closest('tr');
+  const id = tr.dataset.id;
+  if (!confirm('¿Eliminar este ítem de la lista de compras?')) return;
+  const r = await fetch(`/api/compras/${id}`, { method: 'DELETE' });
+  if (r.ok) {
+    location.reload();
+  } else {
+    const err = await r.json().catch(() => ({}));
+    alert(err.detail || 'No se pudo eliminar.');
+  }
+});
+
+activarOrdenamiento('tabla-compras');
+</script>
+{% endblock %}

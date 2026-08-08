@@ -1,0 +1,11 @@
+# Sin versiones fijas a propósito: así pip instala la versión más nueva con
+# instalador ya compilado (wheel) para tu Python, en vez de una vieja que capaz
+# no tiene wheel para tu versión y termina intentando compilar desde cero.
+fastapi
+uvicorn[standard]
+sqlalchemy
+jinja2
+python-multipart
+pydantic
+reportlab
+openpyxl

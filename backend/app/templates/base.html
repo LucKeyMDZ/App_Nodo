@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    (function () {
+      var tema = localStorage.getItem('tema');
+      var oscuro = tema === 'dark' || (!tema && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (oscuro) document.documentElement.setAttribute('data-theme', 'dark');
+    })();
+  </script>
+  <title>{% block title %}Préstamos del taller{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/">
+        <img src="/static/logo_etec.png" alt="ETec" class="brand-logo">
+        NODO
+      </a>
+      <nav>
+        <a href="/">Mostrador</a>
+        <a href="/historial">Historial</a>
+        <a href="/inventario">Inventario</a>
+        <a href="/novedades">Novedades</a>
+        <a href="/tareas">Tareas</a>
+        <a href="/compras">Compras</a>
+        <button type="button" id="theme-toggle" class="theme-toggle-btn"></button>
+        <button type="button" id="btn-apagar" class="app-close-btn">Cerrar aplicación</button>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+  <script>
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      function actualizarEtiqueta() {
+        var esOscuro = document.documentElement.getAttribute('data-theme') === 'dark';
+        btn.textContent = esOscuro ? 'Modo claro' : 'Modo oscuro';
+      }
+      actualizarEtiqueta();
+      btn.addEventListener('click', function () {
+        var esOscuro = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (esOscuro) {
+          document.documentElement.removeAttribute('data-theme');
+          localStorage.setItem('tema', 'light');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          localStorage.setItem('tema', 'dark');
+        }
+        actualizarEtiqueta();
+      });
+    })();
+
+    document.getElementById('btn-apagar').addEventListener('click', async function () {
+      if (!confirm('¿Cerrar la aplicación NODO? Vas a tener que volver a abrirla con el ícono del escritorio.')) return;
+      try {
+        await fetch('/api/apagar', { method: 'POST' });
+      } catch (e) {
+        // el servidor puede cortar la conexión antes de que llegue la respuesta; no importa
+      }
+      document.body.innerHTML =
+        '<div style="max-width:420px;margin:100px auto;text-align:center;font-family:inherit;">' +
+        '<h2>Aplicación cerrada</h2><p>Ya podés cerrar esta pestaña.</p></div>';
+    });
+  </script>
+</body>
+</html>

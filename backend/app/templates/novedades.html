@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Novedades — Préstamos del taller{% endblock %}
+{% block content %}
+
+<h1>Novedades</h1>
+
+<div class="dos-columnas">
+
+  <!-- ==================== NOVEDADES DE ELEMENTOS (lo que ya había) ==================== -->
+  <div class="columna">
+    <div class="card">
+      <h2>Registrar novedad</h2>
+      <label for="n-codigo">Código del elemento</label>
+      <input type="text" id="n-codigo" placeholder="Escaneá o escribí el código">
+      <label for="n-clasificacion">Clasificación</label>
+      <select id="n-clasificacion">
+        <option value="retiro">Retiro / baja definitiva</option>
+        <option value="reparacion">Reparación</option>
+        <option value="daño">Daño</option>
+        <option value="otro">Otro</option>
+      </select>
+      <label for="n-comentario">Comentario <span class="hint">(opcional)</span></label>
+      <textarea id="n-comentario"></textarea>
+      <div id="n-msg"></div>
+      <button class="btn" id="n-btn">Guardar novedad</button>
+    </div>
+
+    <div class="card">
+      <h2>Historial de novedades</h2>
+      {% if novedades %}
+      <table>
+        <thead><tr><th>Fecha</th><th>Elemento</th><th>Clasificación</th><th>Comentario</th><th>Acciones</th></tr></thead>
+        <tbody id="tbody-novedades">
+          {% for n in novedades %}
+          <tr data-id="{{ n.id }}">
+            <td>{{ n.fecha_hora.strftime('%d/%m/%Y %H:%M') }}</td>
+            <td>{{ n.elemento.nombre if n.elemento else n.elemento_codigo }}<br><span class="hint">{{ n.elemento_codigo }}</span></td>
+            <td>{{ n.clasificacion }}</td>
+            <td>{{ n.comentario or '—' }}</td>
+            <td><button class="btn btn-sm btn-danger btn-eliminar-novedad">Eliminar</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">Todavía no hay novedades registradas.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ==================== NOVEDADES DE LABORATORIOS ==================== -->
+  <div class="columna">
+    <div class="card">
+      <h2>Novedades de laboratorios</h2>
+      <label for="nl-laboratorio">Laboratorio</label>
+      <select id="nl-laboratorio">
+        <option value="">Elegir laboratorio…</option>
+        {% for lab in laboratorios %}<option value="{{ lab }}">{{ lab }}</option>{% endfor %}
+      </select>
+      <label for="nl-comentario">Problema detectado</label>
+      <textarea id="nl-comentario" placeholder="Describí qué encontraste"></textarea>
+      <div id="nl-msg"></div>
+      <button class="btn" id="nl-btn">Guardar novedad</button>
+    </div>
+
+    <div class="card">
+      <h2>Historial de novedades de laboratorios</h2>
+      {% if novedades_lab %}
+      <table>
+        <thead><tr><th>Fecha</th><th>Laboratorio</th><th>Problema</th><th>Acciones</th></tr></thead>
+        <tbody id="tbody-novedades-lab">
+          {% for n in novedades_lab %}
+          <tr data-id="{{ n.id }}">
+            <td>{{ n.fecha_hora.strftime('%d/%m/%Y %H:%M') }}</td>
+            <td>{{ n.laboratorio }}</td>
+            <td>{{ n.comentario }}</td>
+            <td><button class="btn btn-sm btn-danger btn-eliminar-novedad-lab">Eliminar</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">Todavía no hay novedades de laboratorios registradas.</div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<script>
+document.getElementById('n-btn').addEventListener('click', async () => {
+  const msgEl = document.getElementById('n-msg');
+  const codigo = document.getElementById('n-codigo').value.trim();
+  if (!codigo) { msgEl.innerHTML = '<div class="msg msg-error">Falta el código.</div>'; return; }
+  const body = {
+    elemento_codigo: codigo,
+    clasificacion: document.getElementById('n-clasificacion').value,
+    comentario: document.getElementById('n-comentario').value || null,
+  };
+  const r = await fetch('/api/novedades', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (r.ok) {
+    location.reload();
+  } else {
+    const err = await r.json().catch(() => ({}));
+    msgEl.innerHTML = `<div class="msg msg-error">${err.detail || 'No se pudo guardar.'}</div>`;
+  }
+});
+
+document.getElementById('tbody-novedades')?.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('.btn-eliminar-novedad');
+  if (!btn) return;
+  const tr = btn.closest('tr');
+  const id = tr.dataset.id;
+  if (!confirm('¿Eliminar esta novedad? Esta acción no se puede deshacer.')) return;
+  const r = await fetch(`/api/novedades/${id}`, { method: 'DELETE' });
+  if (r.ok) {
+    location.reload();
+  } else {
+    const err = await r.json().catch(() => ({}));
+    alert(err.detail || 'No se pudo eliminar.');
+  }
+});
+
+document.getElementById('nl-btn').addEventListener('click', async () => {
+  const msgEl = document.getElementById('nl-msg');
+  const laboratorio = document.getElementById('nl-laboratorio').value;
+  const comentario = document.getElementById('nl-comentario').value.trim();
+  if (!laboratorio) { msgEl.innerHTML = '<div class="msg msg-error">Falta elegir el laboratorio.</div>'; return; }
+  if (!comentario) { msgEl.innerHTML = '<div class="msg msg-error">Falta describir el problema.</div>'; return; }
+  const r = await fetch('/api/novedades-laboratorio', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ laboratorio, comentario }),
+  });
+  if (r.ok) {
+    location.reload();
+  } else {
+    const err = await r.json().catch(() => ({}));
+    msgEl.innerHTML = `<div class="msg msg-error">${err.detail || 'No se pudo guardar.'}</div>`;
+  }
+});
+
+document.getElementById('tbody-novedades-lab')?.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('.btn-eliminar-novedad-lab');
+  if (!btn) return;
+  const tr = btn.closest('tr');
+  const id = tr.dataset.id;
+  if (!confirm('¿Eliminar esta novedad? Esta acción no se puede deshacer.')) return;
+  const r = await fetch(`/api/novedades-laboratorio/${id}`, { method: 'DELETE' });
+  if (r.ok) {
+    location.reload();
+  } else {
+    const err = await r.json().catch(() => ({}));
+    alert(err.detail || 'No se pudo eliminar.');
+  }
+});
+</script>
+{% endblock %}
